@@ -1,0 +1,9 @@
+{
+  "n_logs": 0,
+  "count_5xx": 0,
+  "p95_latency_ms": 0,
+  "patterns": {
+    "path_traversal_hits": 0,
+    "cmd_param_hits": 0
+  }
+}

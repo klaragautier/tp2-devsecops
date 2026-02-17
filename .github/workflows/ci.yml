@@ -1,123 +1,52 @@
-#Le pipeline se lance automatiquement quand tu fais un push sur la branche main ou vuln-demo
-name: DevSecOps Pipeline
+name: TP2 - Runtime Security Gate
 
 on:
   push:
-    branches: [ "main", "vuln-demo" ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
 
 jobs:
-  # JOB 1 : Tests Unitaires
-  #Vérifie que le code fonctionne techniquement.
-  unit-tests:
+  runtime-gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
+      # 1. Récupération du code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Installation de Python (Nécessaire pour log_metrics.py)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          
-      - name: Install dependencies
-        run: pip install -r services/catalog-service/requirements.txt
-          
-      - name: Run Unit Tests
-        run: echo "Tests unitaires simulés OK"
+          python-version: '3.10'
 
-  # JOB 2 : Sécurité Statique
-  security-static:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # 1. GITLEAKS (Secrets)
-      #Scanne tout l'historique Git pour voir si on a laissé traîner des mots de passe ou clés API.
-      - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: false #si un secret est trouvé, le pipeline s'arrête net.
-
-      # 2. SEMGREP (Code)
-      #Installe Semgrep et analyse les fichiers Python pour trouver des failles de code
-      - name: Semgrep Code Scan
-        run: |
-          pip install semgrep
-          semgrep scan --config=p/python --json --output=semgrep.json
-        continue-on-error: false
-
-      # Sauvegarde Artefact Semgrep (Format JSON cette fois)
-      - name: Upload Semgrep Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: semgrep-report
-          path: semgrep.json
-
-  # JOB 3 : Build, Staging & DAST
-  deploy-staging-and-scan:
-    needs: [unit-tests, security-static]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      #Fabrique l'image Docker de l'application.
-      - name: Build Docker Image
-        run: docker compose -f compose.staging.yml build
-
-      # 3. TRIVY (Console - Bloquant)
-      #Si une faille critique est trouvée dans l'image le pipeline s'arrête.
-      - name: Run Trivy Console Scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'ecommerce-devsecops-catalog-service:latest'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL'
-
-      # TRIVY (Rapport JSON - Non bloquant pour artefact)
-      - name: Generate Trivy Report
-        uses: aquasecurity/trivy-action@master
-        if: always()
-        with:
-          image-ref: 'ecommerce-devsecops-catalog-service:latest'
-          format: 'json'
-          output: 'trivy-report.json'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-report
-          path: trivy-report.json
-
-      # DEPLOY
-      #Lance le site web dans un serveur temporaire et vérifie qu'il répond "OK" (smoke.sh).
+      # 3. Démarrage de l'environnement Staging
       - name: Start Staging Environment
-        run: docker compose -f compose.staging.yml up -d
+        run: docker compose -f compose.staging.yml up -d --build
 
-      - name: Wait for service to be healthy
+      # 4. Petite pause pour laisser le temps à Flask de démarrer
+      - name: Wait for service
         run: sleep 10
 
-      - name: Run Smoke Test
-        run: bash monitoring/smoke.sh
+      # 5. Exécution de la Gate
+      - name: Run Log Gate
+        run: |
+          chmod +x monitoring/*.sh
+          bash monitoring/log_gate.sh
         env:
-          BASE_URL: http://localhost:5000
+          # On cible le port 5001 car c'est celui exposé dans le compose.staging.yml
+          BASE_URL: http://localhost:5001
+          SERVICE: catalog
+          # Seuils stricts pour la CI
+          MAX_5XX: 0
+          MAX_TRAV: 0
+          MAX_CMD: 0
 
-      # 4. ZAP (DAST)
-      # Attaque le site qui tourne comme un hacker pour trouver des problèmes de configuration
-      - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.12.0
+      # 6. Sauvegarde des rapports (Artefacts)
+      # 'if: always()' assure que les rapports sont sauvés même si la gate échoue (rouge)
+      - name: Upload Security Reports
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          target: 'http://localhost:5000'
-          allow_issue_writing: false
-          artifact_name: 'zap-scan-report'
-          cmd_options: '-a'
-        continue-on-error: true
+          name: runtime-reports
+          path: reports/
