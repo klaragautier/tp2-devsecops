@@ -10,7 +10,7 @@ services:
       timeout: 3s
       retries: 3
     networks:
-      - devsecops-neth
+      - devsecops-net
 
   auth-service:
     build: ./services/auth-service
