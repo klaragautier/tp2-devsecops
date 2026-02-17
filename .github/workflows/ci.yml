@@ -1,0 +1,107 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ "main", "vuln-demo" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # JOB 1 : Tests Unitaires & Qualité Code
+  # Vérifie que le code Python fonctionne avant d'aller plus loin.
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          pip install -r services/catalog-service/requirements.txt
+          
+      # Exécute les tests unitaires (PDF Page 7)
+      # Si ça échoue ici, le pipeline s'arrête (Gate de qualité)
+      - name: Run Unit Tests
+        # On ignore l'erreur pour l'instant si tu n'as pas encore créé le fichier de test
+        continue-on-error: true 
+        run: |
+          # pytest services/catalog-service/tests
+          echo "Simulation des tests unitaires (à activer quand tu auras écrit les tests)"
+
+  # JOB 2 : Sécurité Statique (SAST + Secrets)
+  # Scanners : Gitleaks (Secrets) et Semgrep (Code)
+  security-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # SCANNER 1 : Gitleaks (Cherche les mots de passe oubliés)
+      # Il va trouver "dev-secret-do-not-use" dans ton app.py
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+      # SCANNER 2 : Semgrep (Analyse de code SAST)
+      # Il va trouver l'injection SQL et Command Injection
+      - name: Semgrep Code Scan
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: p/python # Règles standards pour Python
+        continue-on-error: false
+
+  # JOB 3 : Build, Staging & DAST
+  # Scanners : Trivy (Image Docker) et ZAP (Site en ligne)
+  deploy-staging-and-scan:
+    needs: [unit-tests] # Attend que les tests soient OK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # BUILD : Construction de l'image Docker
+      - name: Build Docker Image
+        run: docker compose -f compose.staging.yml build
+
+      # SCANNER 3 : Trivy (Scan de vulnérabilités dans l'image)
+      # Il va analyser l'image python:3.11-slim et tes paquets
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ecommerce-devsecops-catalog-service:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # DEPLOY STAGING : Lancement de l'environnement
+      - name: Start Staging Environment
+        run: docker compose -f compose.staging.yml up -d
+
+      # SUPERVISION : Vérification que ça tourne (PDF Page 4)
+      - name: Wait for service to be healthy
+        run: sleep 10 # Petit temps de pause pour que Flask démarre
+
+      - name: Run Smoke Test
+        run: bash monitoring/smoke.sh
+        env:
+          BASE_URL: http://localhost:5000
+
+      - name: Run Supervision Script
+        run: bash monitoring/supervision.sh
+        env:
+          BASE_URL: http://localhost:5000
+
+      # SCANNER 4 : ZAP (DAST - Attaque le site lancé)
+      # OWASP ZAP va scanner ton site http://localhost:5000 pour trouver des failles Web
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:5000'
+          cmd_options: '-a' # Scan agressif
+        continue-on-error: true
