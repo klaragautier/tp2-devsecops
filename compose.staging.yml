@@ -1,5 +1,6 @@
 services:
   catalog-service:
+    image: ecommerce-devsecops-catalog-service:latest
     build: 
       context: ./services/catalog-service
     ports:
