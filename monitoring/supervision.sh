@@ -1,12 +1,9 @@
-#Ce script permet de s'assurer que l'application répond '200 OK' de manière constante sur plusieurs tentatives.
-
 #!/bin/bash
 set -euo pipefail
-BASE_URL="${BASE_URL:-http://localhost:5000}"
+BASE_URL="${BASE_URL:-http://localhost:5001}"
 
 echo "Starting supervision loop..."
 for i in $(seq 1 5); do
-    # Récupère le code HTTP (doit être 200)
     code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/health")
     if [ "$code" = "200" ]; then
         echo "Attempt $i: OK"
