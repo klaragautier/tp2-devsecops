@@ -12,5 +12,23 @@ services:
     networks:
       - devsecops-net
 
+  auth-service:
+    build: ./services/auth-service
+    ports:
+      - "5001:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+    networks:
+      - devsecops-net
+
+  order-service:
+    build: ./services/order-service
+    ports:
+      - "5002:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+    networks:
+      - devsecops-net
+
 networks:
   devsecops-net:

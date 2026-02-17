@@ -1,19 +1,21 @@
-# Image légère Python (et non plus Node)
+# On utilise une image officielle légère et maintenue
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Installation des dépendances Python
-# On copie requirements.txt (que tu as créé juste avant)
+# Installation des dépendances
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie du code source
-# Attention : on copie le contenu du dossier src/ dans le dossier courant /app
+# Copie du code sécurisé
 COPY src/ .
 
-# Port standard Flask
+# On expose le port 5000
 EXPOSE 5000
 
-# Lancement du serveur Python
+# Création d'un utilisateur non-root pour la sécurité (Bonne pratique Docker)
+RUN useradd -m appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
 CMD ["python", "app.py"]

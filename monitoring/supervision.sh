@@ -1,3 +1,5 @@
+#Ce script permet de s'assurer que l'application répond '200 OK' de manière constante sur plusieurs tentatives.
+
 #!/bin/bash
 set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:5000}"
