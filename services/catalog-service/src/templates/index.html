@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>BookStore Secure</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f4f4f9; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        .price { color: #27ae60; font-weight: bold; font-size: 1.2em; }
+        .search-box { margin-bottom: 20px; padding: 10px; width: 100%; box-sizing: border-box; }
+        .status-ok { color: green; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <h1>📚 BookStore Secure <span class="status-ok">● Système Sécurisé</span></h1>
+    
+    <form action="/search" method="get">
+        <input type="text" name="q" class="search-box" placeholder="Rechercher un livre (ex: DevSecOps)...">
+    </form>
+
+    <div id="results">
+        <p>Bienvenue sur notre catalogue sécurisé.</p>
+        <p><a href="/search?q=">Voir tous les livres (JSON)</a></p>
+    </div>
+
+    <div class="card">
+        <h3>Offre Spéciale</h3>
+        <p>Obtenez une réduction sur votre prochaine commande.</p>
+        <form action="/discount" method="post" enctype="application/json">
+            <button type="button" onclick="testDiscount()">Tester la réduction</button>
+        </form>
+        <p id="discount-result"></p>
+    </div>
+
+    <script>
+        async function testDiscount() {
+            try {
+                const res = await fetch('/discount', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({pct: 10})
+                });
+                const data = await res.json();
+                document.getElementById('discount-result').innerText = "Nouveau prix : " + data.new_price;
+            } catch (e) {
+                document.getElementById('discount-result').innerText = "Erreur (Bug corrigé ?)";
+            }
+        }
+    </script>
+</body>
+</html>
